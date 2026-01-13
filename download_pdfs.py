@@ -1,28 +1,15 @@
 import os
-import re
 import hashlib
 import requests
-import pdfplumber
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
-# ========= הגדרות =========
-
 INDEX_PAGES = [
-    "https://www.ayellet.org.il/our-magazine/"  # החלף לכתובת אמיתית
+    "https://example.com/publications/"
 ]
 
 OUT_DIR = "harvested_pdfs"
 HASH_FILE = os.path.join(OUT_DIR, "hashes.txt")
-
-HEBREW_MONTHS = [
-    "תשרי","חשוון","כסלו","טבת","שבט","אדר",
-    "ניסן","אייר","סיוון","תמוז","אב","אלול"
-]
-
-MAGAZINE_NAME = "אדם_ועבודה"  # שנה אם צריך
-
-# ==========================
 
 os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -34,43 +21,12 @@ if os.path.exists(HASH_FILE):
 def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
-def safe_filename(text):
-    text = re.sub(r"[^\w\u0590-\u05FF ]+", "", text)
-    return re.sub(r"\s+", "_", text.strip())
-
-def extract_issue_and_hebrew_date(pdf_path):
-    """מחלץ מספר גיליון + חודש + שנה עברית מעמוד ראשון"""
-    try:
-        with pdfplumber.open(pdf_path) as pdf:
-            text = pdf.pages[0].extract_text() or ""
-    except Exception:
-        return None, None, None
-
-    issue = None
-    month = None
-    year = None
-
-    issue_match = re.search(r"גליון\s*מס'?\s*(\d+)", text)
-    if issue_match:
-        issue = issue_match.group(1)
-
-    for m in HEBREW_MONTHS:
-        if m in text:
-            month = m
-            break
-
-    year_match = re.search(r"תש[א-ת]{1,3}", text)
-    if year_match:
-        year = year_match.group(0)
-
-    return issue, month, year
-
 def get_pdf_links(url):
     r = requests.get(url, timeout=30)
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
-
     links = set()
+
     for a in soup.find_all("a", href=True):
         href = a["href"]
         if href.lower().endswith(".pdf"):
@@ -78,7 +34,6 @@ def get_pdf_links(url):
 
     return sorted(links)
 
-# ========= קציר =========
 import pdfplumber
 import re
 from datetime import datetime
@@ -121,39 +76,31 @@ for page in INDEX_PAGES:
     for pdf_url in pdf_links:
         try:
             r = requests.get(pdf_url, timeout=30)
-            if not (r.ok and "pdf" in r.headers.get("content-type", "").lower()):
-                print("Skipped (not PDF):", pdf_url)
-                continue
+            if r.ok and "pdf" in r.headers.get("content-type", "").lower():
+                h = sha256(r.content)
+                if h not in existing_hashes:
+                    temp_path = os.path.join(OUT_DIR, "temp.pdf")
 
-            h = sha256(r.content)
-            if h in existing_hashes:
-                print("Already exists:", pdf_url)
-                continue
+with open(temp_path, "wb") as f:
+    f.write(r.content)
 
-            # שמירה זמנית
-            temp_path = os.path.join(OUT_DIR, "temp.pdf")
-            with open(temp_path, "wb") as f:
-                f.write(r.content)
+title, issue, hebrew_date = extract_metadata_from_pdf(temp_path)
 
-            issue, month, year = extract_issue_and_hebrew_date(temp_path)
+filename = f"{title}_{hebrew_date}_גיליון_{issue}.pdf"
+path = os.path.join(OUT_DIR, filename)
 
-            if issue and month and year:
-                filename = f"{MAGAZINE_NAME}_גיליון_{issue}_{month}_{year}.pdf"
+os.rename(temp_path, path)
+
+                    with open(HASH_FILE, "a", encoding="utf-8") as f:
+                        f.write(h + "\n")
+
+                    existing_hashes.add(h)
+                    new_files += 1
+                    print("Downloaded:", filename)
+                else:
+                    print("Already exists:", pdf_url)
             else:
-                filename = safe_filename(pdf_url.split("/")[-1])
-                if not filename.lower().endswith(".pdf"):
-                    filename += ".pdf"
-
-            final_path = os.path.join(OUT_DIR, filename)
-            os.rename(temp_path, final_path)
-
-            with open(HASH_FILE, "a", encoding="utf-8") as f:
-                f.write(h + "\n")
-
-            existing_hashes.add(h)
-            new_files += 1
-            print("Downloaded:", filename)
-
+                print("Skipped (not PDF):", pdf_url)
         except Exception as e:
             print("Error:", pdf_url, e)
 

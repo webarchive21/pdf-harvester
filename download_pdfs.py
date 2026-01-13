@@ -9,7 +9,7 @@ from urllib.parse import urljoin
 # ========= הגדרות =========
 
 INDEX_PAGES = [
-    "https://example.com/publications/"  # החלף לכתובת אמיתית
+    "https://www.ayellet.org.il/our-magazine/"  # החלף לכתובת אמיתית
 ]
 
 OUT_DIR = "harvested_pdfs"

@@ -80,9 +80,8 @@ for page in INDEX_PAGES:
                 h = sha256(r.content)
                 if h not in existing_hashes:
                     temp_path = os.path.join(OUT_DIR, "temp.pdf")
-
-with open(temp_path, "wb") as f:
-    f.write(r.content)
+                    with open(temp_path, "wb") as f:
+                            f.write(r.content)
 
 title, issue, hebrew_date = extract_metadata_from_pdf(temp_path)
 

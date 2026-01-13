@@ -79,6 +79,38 @@ def get_pdf_links(url):
     return sorted(links)
 
 # ========= קציר =========
+import pdfplumber
+import re
+from datetime import datetime
+
+def extract_metadata_from_pdf(path):
+    title = "publication"
+    issue = "unknown"
+    hebrew_date = "no-date"
+
+    try:
+        with pdfplumber.open(path) as pdf:
+            first_page = pdf.pages[0]
+            text = first_page.extract_text() or ""
+
+        # חיפוש מספר גיליון
+        m_issue = re.search(r"גיליון\s*(\d+)", text)
+        if m_issue:
+            issue = m_issue.group(1)
+
+        # חיפוש תאריך עברי (בסיסי)
+        m_date = re.search(r"(תשרי|חשוון|כסלו|טבת|שבט|אדר|ניסן|אייר|סיוון|תמוז|אב|אלול)\s+תשפ״?\w", text)
+        if m_date:
+            hebrew_date = m_date.group(0).replace(" ", "_")
+
+        # שם פרסום
+        if "איילת" in text:
+            title = "איילת_השחר"
+
+    except Exception as e:
+        print("Metadata error:", e)
+
+    return title, issue, hebrew_date
 
 new_files = 0
 

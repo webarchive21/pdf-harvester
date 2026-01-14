@@ -11,7 +11,7 @@ import re
 # ========================
 
 INDEX_PAGES = [
-    "https://example.com/publications/"
+    "https://www.ayellet.org.il/our-magazine/"
 ]
 
 OUT_DIR = "harvested_pdfs"
